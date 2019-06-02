@@ -33,3 +33,8 @@ General syntax
 script-name.py "codeA,codeB,codeC....." "my-outputfile.csv"
 
 *Note: You will need to find out the code that the page is using if you are going this deep.*
+
+# Developer Rants
+The ROM webpage is quite user unfriendly for searching by name and thus the development of this script.
+And after studying the HTML data of the result.... I just hope that they can update their website with better CSS library (and better still, update the technology and framework). 
+Looping and writing tr and td tags isn't easy to maintain. Which explains in some of the extra stuffs which I need to handle in my script. (e.g. Missing table closing tag)
