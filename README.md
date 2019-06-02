@@ -14,7 +14,6 @@ What this program does is to
 tldr: performs black magic to convert the ROM list into an organized CSV format.
 
 
-
 Hopefully this can save time for those looking for solemnizers by name.
 
 
@@ -31,6 +30,6 @@ Just run the batch files required.
 
 General syntax
 
-<script-name>.py "codeA,codeB,codeC....." "my-outputfile.csv"
+script-name.py "codeA,codeB,codeC....." "my-outputfile.csv"
 
 *Note: You will need to find out the code that the page is using if you are going this deep.*
