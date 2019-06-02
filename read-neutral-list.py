@@ -1,47 +1,50 @@
 import requests
 import os
-from os import system
-from colorama import Fore, Back, Style, init
-init(autoreset=True)
-
-from bs4 import BeautifulSoup
 import re
 import json
 import csv
 import sys
+from bs4 import BeautifulSoup
 
 '''
-This program does not work for Grassroot page.
-	rom_grassroots_all.asp
-	
+This program extracts HTML from the ROM website and parse 
+it into JSON format and finally exports as CSV
 '''
-
 
 URL="https://www.rom.gov.sg/reg_info/rom_licensed_sol_result.asp"
 
+'''
+save HTML as temp file for working on.
+Technically is not required for saving as tmp file,
+but this will allow debugger to debug without 
+pulling too many times from the website
 
+I scared kenna blacklisted/blocked from website.
+'''
 def getHTMLAsFile(u, orgType, tmpFileName):
-	r = requests.post(url = u, data={
+	
+	payload = {
 		"orgType": orgType
-	});
+	}
+	
+	print("Sending HTTP POST request to ", u)
+	print("Payload: ", payload)
+
+	r = requests.post(url = u, data=payload);
 	
 	with open(tmpFileName,'wb') as output:
 		output.write(r.content)
-
-
+	
+	print("Saved HTML results to ", tmpFileName)
+	
+#simple read file as text
 def readFile(f):
+	print("Reading file: ", f)
 	htmlFile=open(f, "r")
 	return htmlFile.read()
 	
-#html = readFile("list.html")
 
-#soup = BeautifulSoup(html, 'html.parser')
-
-#for novel_group in soup.find_all(class_='novel_list')
-
-#print(soup.prettify())
-
-
+#performs the magic
 def extract(orgType):
 	print("Processing...", orgType)
 	
@@ -53,8 +56,17 @@ def extract(orgType):
 	soup = BeautifulSoup(html, 'html.parser')
 	
 	solomizerList = []
+	solemizerNames = []
+	'''
+	General Notes:
+	The parsing requires abit of studying of the HTML structure of the data.
+	Takes into consideration of invalid HTML constructs (e.g. Open tags without 
+	closing or missing closing tags etc)
+	
+	Developer Notes:
+	The neutral lists are still easier to parse as compared to the GRC and Christian list where typos exists
+	'''
 	for i in soup.find_all("table", {'class': re.compile(r'^table_content')}):
-		#print(i.prettify())
 		
 		allTds = i.find_all("td")
 		tdData = []
@@ -129,12 +141,10 @@ def extract(orgType):
 				tmp["LICENCE_EXPIRE"] = val_license
 				tmp["EMAIL"] = val_email
 				
-				solomizerList.append(tmp)
-
-		#print(json.dumps(solomizerList, indent=4))
-		
-		#with open(outputFileName, 'w') as output:
-		#	output.write(json.dumps(solomizerList, indent=4))
+				#prevent duplicates. Technically, this will prevent the closing tag errors
+				if val_name not in solemizerNames:
+					solomizerList.append(tmp)
+					solemizerNames.append(val_name)
 		
 	os.remove(tmpFileName)
 	return solomizerList
@@ -167,17 +177,25 @@ def main():
 	output_file_name = sys.argv[2]
 	codes = cmd_codes.split(",")
 
-
-	#B,T is for buddhist and taoist
-	#codes = ["B", "T"]		
-	#codes = ["A", "F", "J"]
 	for code in codes:
+		print("=============================")
+		print("Processing Code: ", code)
 		tmp = extract(code)
 		if len(tmp) > 0:
 			for x in tmp:
 				sol.append(x)
-				
+		
+		print("Completed.")
+	
+	print("\nParse Completed.\n\n")
+	
+	print(json.dumps(sol, indent='   '))
+	print("========================================")
+	print("ROM Data Parsed. Writing to CSV: ", output_file_name)
 	jsonToCsv(sol, output_file_name)
+	print("List Extracted.")
+	
+	
 	
 if __name__ == "__main__":
 	if len(sys.argv) < 3:

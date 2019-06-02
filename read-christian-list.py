@@ -1,44 +1,54 @@
 import requests
 import os
-from os import system
-from colorama import Fore, Back, Style, init
-init(autoreset=True)
-
-from bs4 import BeautifulSoup
 import re
-import sys
 import json
 import csv
+import sys
+from bs4 import BeautifulSoup
 
 '''
-This program does not work for Grassroot page.
-	rom_grassroots_all.asp
-	
+This program extracts HTML from the ROM website and parse 
+it into JSON format and finally exports as CSV
 '''
-
 
 URL="https://www.rom.gov.sg/reg_info/rom_licensed_sol_result2.asp"
 
+'''
+save HTML as temp file for working on.
+Technically is not required for saving as tmp file,
+but this will allow debugger to debug without 
+pulling too many times from the website
 
+I scared kenna blacklisted/blocked from website.
+'''
 def getHTMLAsFile(u, churchCode, tmpFileName):
-	r = requests.post(url = u, data={
+
+	payload = {
 		"cboDenomination": churchCode
-	});
+	}
+	
+	print("Sending HTTP POST request to ", u)
+	print("Payload: ", payload)
+
+	r = requests.post(url = u, data=payload);
 	
 	with open(tmpFileName,'wb') as output:
 		output.write(r.content)
+		
+	print("Saved HTML results to ", tmpFileName)
 
-
+#simple read file as text
 def readFile(f):
+	print("Reading file: ", f)
 	htmlFile=open(f, "r")
 	return htmlFile.read()
 	
-
+	
+#performs the magic
 def extract(churchCode):
 	print("Processing...", churchCode)
 	
 	tmpFileName = "temp.tmp"
-	#outputFileName = outputFile + ".json"
 	
 	getHTMLAsFile(URL, churchCode, tmpFileName)
 	html = readFile(tmpFileName)
@@ -47,6 +57,15 @@ def extract(churchCode):
 	
 	solomizerList = []
 	tdData = []
+	solemizerNames = []
+	
+	'''
+	General Notes:
+	The parsing requires abit of studying of the HTML structure of the data.
+	Takes into consideration of invalid HTML constructs (e.g. Open tags without 
+	closing or missing closing tags etc)
+	'''
+	
 	tables = soup.find_all("table", {'class': "content_table"})
 	
 	contentTable = None
@@ -67,7 +86,7 @@ def extract(churchCode):
 	#solomizerList
 	for i in range(len(tdData)):
 		txt = tdData[i]
-		#print(txt.find("CHURCH"), txt.find("CONFERENCE"))	
+
 		if txt.find("CHURCH") > -1 or txt.find("CONFERENCE") > -1:
 			
 			tmp = {}
@@ -123,7 +142,10 @@ def extract(churchCode):
 			tmp["LICENCE_EXPIRE"] = val_license
 			tmp["EMAIL"] = val_email
 			
-			solomizerList.append(tmp)
+			#prevent duplicates. Technically, this will prevent the closing tag errors
+			if val_name not in solemizerNames:
+				solomizerList.append(tmp)
+				solemizerNames.append(val_name)
 
 	os.remove(tmpFileName)
 	return solomizerList
@@ -155,17 +177,25 @@ def main():
 	output_file_name = sys.argv[2]
 	codes = cmd_codes.split(",")
 
-
-	#B,T is for buddhist and taoist
-	#codes = ["B", "T"]		
-	#codes = ["A", "F", "J"]
 	for code in codes:
+		print("=============================")
+		print("Processing Code: ", code)
 		tmp = extract(code)
 		if len(tmp) > 0:
 			for x in tmp:
 				sol.append(x)
-				
+		
+		print("Completed.")
+	
+	print("\nParse Completed.\n\n")
+	
+	print(json.dumps(sol, indent='   '))
+	print("========================================")
+	print("ROM Data Parsed. Writing to CSV: ", output_file_name)
 	jsonToCsv(sol, output_file_name)
+	print("List Extracted.")
+	
+	
 	
 if __name__ == "__main__":
 	if len(sys.argv) < 3:
@@ -173,5 +203,4 @@ if __name__ == "__main__":
 		print("Usage: xxxx.py \"CODE_A, CODE_B .....\" myFile.csv")
 	else:
 		main()
-
 

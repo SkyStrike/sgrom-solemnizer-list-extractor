@@ -1,33 +1,49 @@
 import requests
 import os
-from os import system
-from colorama import Fore, Back, Style, init
-init(autoreset=True)
-
-from bs4 import BeautifulSoup
 import re
 import json
 import csv
 import sys
+from bs4 import BeautifulSoup
 
+'''
+This program extracts HTML from the ROM website and parse 
+it into JSON format and finally exports as CSV
+'''
 
 URL="https://www.rom.gov.sg/reg_info/rom_grassroots_all.asp"
 
+'''
+save HTML as temp file for working on.
+Technically is not required for saving as tmp file,
+but this will allow debugger to debug without 
+pulling too many times from the website
 
+I scared kenna blacklisted/blocked from website.
+'''
 def getHTMLAsFile(u, selGRC, tmpFileName):
-	r = requests.post(url = u, data={
+
+	payload = {
 		"selGRC": selGRC
-	});
+	}
+	
+	print("Sending HTTP POST request to ", u)
+	print("Payload: ", payload)
+
+	r = requests.post(url = u, data=payload);
 	
 	with open(tmpFileName,'wb') as output:
 		output.write(r.content)
+	
+	print("Saved HTML results to ", tmpFileName)
 
-
+#simple read file as text
 def readFile(f):
+	print("Reading file: ", f)
 	htmlFile=open(f, "r")
 	return htmlFile.read()
-
-
+	
+#performs the magic
 def extract(orgType):
 	print("Processing...", orgType)
 	
@@ -41,6 +57,16 @@ def extract(orgType):
 	solemizerNames = []
 	solomizerList = []
 	tdData = []
+	
+	'''
+	General Notes:
+	The parsing requires abit of studying of the HTML structure of the data.
+	Takes into consideration of invalid HTML constructs (e.g. Open tags without 
+	closing or missing closing tags etc)
+	
+	Developer Notes:
+	
+	'''
 	for i in soup.find_all("table", {'class': re.compile(r'^table_content')}):
 		
 		allTds = i.find_all("td")
@@ -50,44 +76,34 @@ def extract(orgType):
 				tdData.append(txt)
 
 	lastIdx = 0
+
+	#texts to detect affliation. Note the spacing AND typos.
+	affliationTxts = [" CLUB", " CONSTITUENCY", " CENTRE", " CONSITUENCY", " COMMUNITY"]
 	
-	
+	#need a sticky affliation due to data structure
 	affliation = ""
 	for i in range(len(tdData)):
 	
 		txt = tdData[i]
-		#print(lastIdx, i, tdData[i])
-		
+
 		if txt.find("LICENCE") > -1:
 		
 			tmp = {}
 			setData = tdData[(lastIdx+1):(i+1)]
-			#for x in setData:
-			#	print(x)
-			
-			#print("------------")
-			
+
 			startFrom = 0
 			for x in range(len(setData)):
 			
 				#identify affliation in set of data
 				txt = setData[x]
-				if 	txt.find(" CLUB") > -1 or txt.find(" CONSTITUENCY") > -1 or txt.find(" CENTRE") > -1 or txt.find(" CONSITUENCY") > -1 or txt.find(" COMMUNITY") > -1:
-					
-					affliation = txt
-					startFrom = x+1
+				for aff in affliationTxts:
+					if txt.find(aff) > -1:
+						affliation = txt
+						startFrom = x+1
+						break
+						
+				#if 	txt.find(" CLUB") > -1 or txt.find(" CONSTITUENCY") > -1 or txt.find(" CENTRE") > -1 or txt.find(" CONSITUENCY") > -1 or txt.find(" COMMUNITY") > -1:
 
-			#print("len(setData)", len(setData))
-			#for x in range(len(setData)):
-			#	print(x, setData[x])
-			#
-			#print("1---------")
-			#for x in range(startFrom, len(setData)):
-			#	print(x, setData[x])
-			#print("2---------")
-			#
-			#print(startFrom, len(setData))
-			
 			val_postalCode = "N/A"
 			val_affliation = affliation
 			val_name = ""
@@ -141,16 +157,14 @@ def extract(orgType):
 			tmp["LICENCE_EXPIRE"] = val_license
 			tmp["EMAIL"] = val_email
 			
-			#print(json.dumps(tmp, indent='    '))
-			
+			#prevent duplicates. Technically, this will prevent the closing tag errors
 			if val_name not in solemizerNames:
 				solomizerList.append(tmp)
 				solemizerNames.append(val_name)
 			
 			lastIdx = i
 			
-	print(json.dumps(solomizerList, indent = '   '))
-	print("=============== End Processing for [" + orgType + "] ========================")
+	#print("=============== End Processing for [" + orgType + "] ========================")
 			
 	os.remove(tmpFileName)
 	return solomizerList
@@ -184,12 +198,24 @@ def main():
 	codes = cmd_codes.split(",")
 
 	for code in codes:
+		print("=============================")
+		print("Processing Code: ", code)
 		tmp = extract(code)
 		if len(tmp) > 0:
 			for x in tmp:
 				sol.append(x)
-				
+		
+		print("Completed.")
+	
+	print("\nParse Completed.\n\n")
+	
+	print(json.dumps(sol, indent='   '))
+	print("========================================")
+	print("ROM Data Parsed. Writing to CSV: ", output_file_name)
 	jsonToCsv(sol, output_file_name)
+	print("List Extracted.")
+	
+	
 	
 if __name__ == "__main__":
 	if len(sys.argv) < 3:
